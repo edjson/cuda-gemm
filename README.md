@@ -1,6 +1,6 @@
 # gemm-cuda
 
-GEMM (`c = A * B`) in CUDA. Benchmarks against cuBLAS with five kernals with two different optimization paths across FP32 with naive, tiled, register tiled, and float4 vectorized. Then WMMA **tensor-core** kernel in FP16. Every kernel is tested against cuBLAS result before ites timing is reported, that way a if there its a misleadingly fast number it will show as `fail`.
+GEMM (`c = A * B`) in CUDA. Benchmarks against cuBLAS with five kernals with two different optimization paths across FP32 with naive, tiled, register tiled, and float4 vectorized. Then WMMA **tensor-core** kernel in FP16. Every kernel is tested against cuBLAS result before it's timing is reported, that way a if there its a misleadingly fast number it will show as `fail`.
 
 ## Two ceilings
 
