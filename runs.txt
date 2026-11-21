@@ -1,0 +1,45 @@
+== size 1024 run 1
+device: NVIDIA GeForce RTX 5060 Ti (sm_120)
+vectorized                  0.293       7317.2       58.5%     pass
+cuBLAS-fp16 (TC)            0.053      40288.7      100.0%      ref
+wmma (TC)                   0.214      10031.9       24.9%     Pass
+== size 1024 run 2
+device: NVIDIA GeForce RTX 5060 Ti (sm_120)
+vectorized                  0.247       8711.0       65.8%     pass
+cuBLAS-fp16 (TC)            0.071      30128.8      100.0%      ref
+wmma (TC)                   0.218       9828.7       32.6%     Pass
+== size 1024 run 3
+device: NVIDIA GeForce RTX 5060 Ti (sm_120)
+vectorized                  0.235       9139.3       87.7%     pass
+cuBLAS-fp16 (TC)            0.053      40396.6      100.0%      ref
+wmma (TC)                   0.238       9008.1       22.3%     Pass
+== size 2048 run 1
+device: NVIDIA GeForce RTX 5060 Ti (sm_120)
+vectorized                  1.755       9790.4       70.8%     pass
+cuBLAS-fp16 (TC)            0.394      43646.3      100.0%      ref
+wmma (TC)                   1.706      10072.8       23.1%     Pass
+== size 2048 run 2
+device: NVIDIA GeForce RTX 5060 Ti (sm_120)
+vectorized                  1.762       9747.9       72.6%     pass
+cuBLAS-fp16 (TC)            0.413      41602.1      100.0%      ref
+wmma (TC)                   1.717      10004.0       24.0%     Pass
+== size 2048 run 3
+device: NVIDIA GeForce RTX 5060 Ti (sm_120)
+vectorized                  1.686      10189.6       72.4%     pass
+cuBLAS-fp16 (TC)            0.387      44380.5      100.0%      ref
+wmma (TC)                   1.734       9910.1       22.3%     Pass
+== size 4096 run 1
+device: NVIDIA GeForce RTX 5060 Ti (sm_120)
+vectorized                 13.389      10265.1       71.1%     pass
+cuBLAS-fp16 (TC)            3.314      41477.7      100.0%      ref
+wmma (TC)                  13.551      10142.3       24.5%     Pass
+== size 4096 run 2
+device: NVIDIA GeForce RTX 5060 Ti (sm_120)
+vectorized                 13.242      10379.0       71.9%     pass
+cuBLAS-fp16 (TC)            3.292      41744.2      100.0%      ref
+wmma (TC)                  13.632      10082.3       24.2%     Pass
+== size 4096 run 3
+device: NVIDIA GeForce RTX 5060 Ti (sm_120)
+vectorized                 13.333      10307.9       71.7%     pass
+cuBLAS-fp16 (TC)            3.291      41758.1      100.0%      ref
+wmma (TC)                  13.582      10119.5       24.2%     Pass
