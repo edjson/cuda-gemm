@@ -100,8 +100,10 @@ repeat runs each at 1024³, 2048³ and 4096³ on the RTX 5060 Ti, showing only t
      (1 KB) for a single 8 KFLOP MMA, about 8 FLOP/byte;
    - no `cp.async` or double buffering, so loads and MMAs don't overlap.
 
-   It's limited by how fast fragments arrive, not by tensor-core math. The
-   next steps are staging tiles in shared memory exactly like kernels 2–4,
+   Nsight Compute confirms this (see [Profiling](#profiling)): L1/TEX
+   throughput is at 99.5% of peak, while the tensor pipe is only 23% busy and
+   DRAM is at 25%. The kernel is limited by the L1 cache, not by DRAM
+   bandwidth or tensor-core math. The next steps are staging tiles in shared memory exactly like kernels 2–4,
    then giving each warp a grid of fragments so every A fragment it loads is
    reused across several B fragments. Shape contract: dims multiple of 16,
    sm_70+.
@@ -125,6 +127,53 @@ cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N,
 ```bash
 ncu --set full ./gemm 2048
 ```
+
+### wmma at 4096³
+
+`profiles/wmma_4096.ncu-rep` is a profile of the `wmma` kernel; open it in the
+Nsight Compute GUI (source is embedded). `profiles/wmma_4096.txt` is a text
+export of the same report. It uses the `full` sections minus PM sampling,
+which keeps the report at ~1 MB instead of ~50 MB:
+
+```bash
+ncu -k regex:matmul_wmma -c 1 --import-source yes \
+    --section SpeedOfLight --section SpeedOfLight_RooflineChart \
+    --section ComputeWorkloadAnalysis --section MemoryWorkloadAnalysis \
+    --section MemoryWorkloadAnalysis_Chart --section MemoryWorkloadAnalysis_Tables \
+    --section SchedulerStats --section WarpStateStats --section InstructionStats \
+    --section LaunchStats --section Occupancy --section WorkloadDistribution \
+    --section SourceCounters -o profiles/wmma_4096 ./gemm 4096
+```
+
+| metric | value | what it means |
+|---|---|---|
+| L1/TEX throughput | 99.5% of peak | the bottleneck |
+| L2 / DRAM throughput | 52% / 25% of peak | most loads hit in cache (77% L1 hit rate, 88% L2) |
+| Tensor pipe | 23% busy | the tensor cores wait for data |
+| Achieved occupancy | 96% | plenty of warps; they're all waiting |
+| Top stall reason | L1TEX scoreboard, ~44 of the ~108 cycles between instructions | warps wait on fragment loads |
+| Wasted sectors | 537M of 1.08B (50%) | each load uses half of every 32-byte sector it fetches |
+
+The SASS view shows why. Loading fragments straight from global memory
+compiles to 4-byte `LDG.E` loads per thread, and each one fetches twice the
+sectors it needs, so L1 serves every byte twice. The `ldmatrix` instruction,
+which loads fragments efficiently, only reads from shared memory. The
+row-major B fragment also needs `MOVM.16.MT88` register transposes. Those
+transposes and the `HMMA` instructions are the top stall sites, because they
+consume the loaded data. The fix, in order:
+
+1. Copy A/B tiles into shared memory with 16-byte coalesced (`cp.async`) loads.
+2. Load fragments from shared memory.
+3. Give each warp several output tiles so every fragment it loads gets reused.
+
+Nsight Compute fixes clocks and flushes caches between replay passes, so its
+kernel duration (17.9 ms) isn't comparable with the benchmark's 13.6 ms. Read
+the percentages, not the time.
+
+On WSL2, `ncu` needs the GPU performance counters enabled for all users in the
+NVIDIA App (System → Advanced → Developer → Manage GPU Performance Counters)
+and then a `wsl --shutdown`. Without the restart it fails with "driver
+resource unavailable".
 
 Next steps: double-buffered / `cp.async` pipelines (Ampere+) to hide load
 latency, warptiling for the FP32 path, and shared-memory staging + `mma.sync`

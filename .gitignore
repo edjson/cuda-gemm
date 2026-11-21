@@ -1,2 +1,3 @@
 gemm
 venv/
+profiles/*_full.ncu-rep
