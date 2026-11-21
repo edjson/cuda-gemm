@@ -131,7 +131,7 @@ static void benchmark(int M, int N, int K, int warmup, int iters, bool csv){
         printf("%-20s %12s %12s %11s %8s\n", "kernel", "time(ms)", "GFLOP/S", "%cuBlas", "verify");
     }
     else{
-        printf("%d,cuBlAS,%.1f,100.0,ref\n", N, gflops(M, N, K, ms_cublas));
+        printf("%d,cuBLAS,%.1f,100.0,ref\n", N, gflops(M, N, K, ms_cublas));
     }
     
     auto run = [&](const char* name, auto launch){
@@ -266,7 +266,7 @@ int main(int argc, char** argv){
 
     if(sweep == true){
         printf("size,kernel,gflops,pct_cublas,verify\n");
-        const int sizes[] = {256, 512, 1024, 4096};
+        const int sizes[] = {256, 512, 1024, 2048, 4096};
         for(size_t i = 0; i < sizeof(sizes) / sizeof(sizes[0]); i++){
             int s = sizes[i];
             benchmark(s, s, s, warmup, iters, true);

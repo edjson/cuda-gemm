@@ -24,6 +24,9 @@ make ARCH=sm_75      # RTX 2060 (Turing)
 make ARCH=sm_120     # RTX 5060 Ti (Blackwell)  -- needs CUDA 12.8+
 # or just `make` to auto-detect the local GPU (-arch=native)
 
+# without make, the same build is:
+nvcc -O3 -arch=native -lineinfo -o gemm main.cu -lcublas
+
 ./gemm                  # default 1024 x 1024 x 1024
 ./gemm 2048             # square, M=N=K=2048
 ./gemm 1024 2048 512    # rectangular M N K
@@ -44,8 +47,8 @@ python plot.py results.csv      # -> gflops_vs_size.png, pct_cublas.png
 ```
 
 `plot.py` needs `matplotlib`. `gflops_vs_size.png` puts all kernels and both
-cuBLAS baselines on one throughput axis (the tensor-core tier visibly towers
-over the CUDA-core tier). `pct_cublas.png` is the FP32 kernels as a fraction of
+cuBLAS baselines on one throughput axis (cuBLAS FP16 visibly towers over
+everything else; the WMMA kernel doesn't yet). `pct_cublas.png` is the FP32 kernels as a fraction of
 FP32 cuBLAS.
 
 ## What it measures
@@ -55,20 +58,26 @@ FP32 cuBLAS.
 - **Verification**: max relative error vs. the same-tier cuBLAS result; `PASS`
   if `< 1e-2` (FP32) / `< 2e-2` (FP16 inputs, looser by design).
 
-Sample single-run output:
+Sample single-run output at 4096³ (`./gemm 4096`):
 
 ```
 device: NVIDIA GeForce RTX 5060 Ti (sm_120)
-problem: C[1024 * 1024] = A[1024 * 1024] * B[1024 * 1024] warmup=5 iters = 20
+problem: C[4096 * 4096] = A[4096 * 4096] * B[4096 * 4096] warmup=5 iters = 20
 
 kernel                   time(ms)      GFLOP/S     %cuBlas   verify
-naive                       1.425       1506.8       10.8%     pass
-tiled                       1.063       2019.9       14.5%     pass
-register-tiled              0.359       5989.5       42.9%     pass
-vectorized                  0.206      10445.2       74.8%     pass
-cuBLAS-fp16 (TC)            0.053      40456.3      100.0%      ref
-wmma (TC)                   0.202      10651.9       26.3%     Pass
+naive                     113.269       1213.4        8.5%     pass
+tiled                      81.518       1686.0       11.8%     pass
+register-tiled             30.768       4466.9       31.4%     pass
+vectorized                 13.454      10215.2       71.7%     pass
+cuBLAS-fp16 (TC)            3.443      39921.1      100.0%      ref
+wmma (TC)                  13.767       9983.4       25.0%     Pass
 ```
+
+Quote the 4096³ numbers, not 1024³. At 1024³ the 20 timed launches take about
+a millisecond in total, so the result swings a lot between runs (cuBLAS FP16
+read anywhere from 30 to 40 TFLOP/s in back-to-back runs). `runs.txt` has three
+repeat runs each at 1024³, 2048³ and 4096³ on the RTX 5060 Ti, showing only the
+`vectorized`, cuBLAS FP16 and `wmma` rows. At 4096³ they agree within ~1%.
 
 ## Kernels
 
@@ -81,10 +90,21 @@ wmma (TC)                   0.202      10651.9       26.3%     Pass
    contract: dims multiple of the tile sizes (harness skips it otherwise).
 5. **wmma (tensor core)** — FP16 in, FP32 accumulate, `16×16×16` MMA via the
    warp-level WMMA API. Each warp owns one tile and walks K loading fragments
-   from global memory. This is the *naive* tensor-core kernel — correct and a
-   large jump over FP32, but still global-memory-bound; the next step is staging
-   tiles in shared memory exactly like kernels 2–4. Shape contract: dims
-   multiple of 16, sm_70+.
+   from global memory. This is the *naive* tensor-core kernel. It's correct
+   and about 8× the naive FP32 kernel, but it only **ties** the optimized FP32
+   `vectorized` kernel (both ~10.1 TFLOP/s at 4096³) and reaches ~25% of
+   cuBLAS FP16. It has none of the data reuse that kernels 2–4 build up:
+   - no shared-memory staging, so every `load_matrix_sync` goes to global
+     memory and reuse depends on L1/L2 hits;
+   - one `16×16` accumulator per warp, so each K step loads two fragments
+     (1 KB) for a single 8 KFLOP MMA, about 8 FLOP/byte;
+   - no `cp.async` or double buffering, so loads and MMAs don't overlap.
+
+   It's limited by how fast fragments arrive, not by tensor-core math. The
+   next steps are staging tiles in shared memory exactly like kernels 2–4,
+   then giving each warp a grid of fragments so every A fragment it loads is
+   reused across several B fragments. Shape contract: dims multiple of 16,
+   sm_70+.
 
 ## The row-major / column-major detail
 
