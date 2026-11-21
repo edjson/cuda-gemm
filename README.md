@@ -92,7 +92,7 @@ repeat runs each at 1024³, 2048³ and 4096³ on the RTX 5060 Ti, showing only t
    warp-level WMMA API. Each warp owns one tile and walks K loading fragments
    from global memory. This is the *naive* tensor-core kernel. It's correct
    and about 8× the naive FP32 kernel, but it only **ties** the optimized FP32
-   `vectorized` kernel (~10.0 vs ~10.2 TFLOP/s at 4096³) and reaches ~25% of
+   `vectorized` kernel (both ~10.1 TFLOP/s at 4096³) and reaches ~25% of
    cuBLAS FP16. It has none of the data reuse that kernels 2–4 build up:
    - no shared-memory staging, so every `load_matrix_sync` goes to global
      memory and reuse depends on L1/L2 hits;
